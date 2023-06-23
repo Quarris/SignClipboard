@@ -2,18 +2,24 @@ package dev.quarris.signclipboard.items;
 
 import dev.quarris.signclipboard.ModRef;
 import dev.quarris.signclipboard.registry.ItemSetup;
+import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.NbtOps;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.SignBlockEntity;
 import net.minecraft.world.level.block.entity.SignText;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
 
 public class SignClipboardItem extends Item {
 
@@ -26,7 +32,11 @@ public class SignClipboardItem extends Item {
 
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
-        System.out.println(player.isShiftKeyDown());
+        if (!player.isShiftKeyDown()) {
+            return super.use(level, player, hand);
+        }
+
+        System.out.println(hand);
         return super.use(level, player, hand);
     }
 
@@ -43,7 +53,7 @@ public class SignClipboardItem extends Item {
         boolean facingFront = sign.isFacingFrontText(player);
 
         if (this.isFilled) {
-            if (player.getUUID().equals(sign.getPlayerWhoMayEdit()) && pasteSignText(ctx.getItemInHand(), sign, !facingFront)) {
+            if ((sign.getPlayerWhoMayEdit() == null || player.getUUID().equals(sign.getPlayerWhoMayEdit())) && pasteSignText(ctx.getItemInHand(), sign, !facingFront)) {
                 return InteractionResult.sidedSuccess(ctx.getLevel().isClientSide());
             }
 
@@ -62,6 +72,21 @@ public class SignClipboardItem extends Item {
         }
 
         return InteractionResult.FAIL;
+    }
+
+    @Override
+    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltips, TooltipFlag flag) {
+        SignText.DIRECT_CODEC.parse(NbtOps.INSTANCE, stack.getTagElement("Front")).resultOrPartial(ModRef.LOGGER::error).ifPresent((text) -> {
+            for (Component line : text.getMessages(true)) {
+                tooltips.add(Component.literal("[").append(line).append("]").withStyle(ChatFormatting.GRAY));
+            }
+        });
+        tooltips.add(Component.literal("-----").withStyle(ChatFormatting.GRAY));
+        SignText.DIRECT_CODEC.parse(NbtOps.INSTANCE, stack.getTagElement("Back")).resultOrPartial(ModRef.LOGGER::error).ifPresent((text) -> {
+            for (Component line : text.getMessages(true)) {
+                tooltips.add(Component.literal("[").append(line).append("]").withStyle(ChatFormatting.GRAY));
+            }
+        });
     }
 
     public static ItemStack copySignText(SignBlockEntity sign, boolean reverse) {
